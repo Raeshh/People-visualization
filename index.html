@@ -1,0 +1,603 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>People 3D Visualization</title>
+
+  <!-- Three.js + CSS3DRenderer -->
+  <script src="https://unpkg.com/three@0.134.0/build/three.min.js"></script>
+  <script src="https://unpkg.com/three@0.134.0/examples/js/renderers/CSS3DRenderer.js"></script>
+  <!-- TWEEN for smooth transitions -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/tween.js/18.6.4/tween.umd.js"></script>
+  <!-- Google Identity Services -->
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box; }
+
+    :root {
+      --red:    #c0392b;
+      --orange: #e67e22;
+      --green:  #27ae60;
+      --bg:     #0a0a0a;
+      --panel:  rgba(255,255,255,0.04);
+      --border: rgba(255,255,255,0.08);
+    }
+
+    body {
+      background: var(--bg);
+      color: #fff;
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      overflow: hidden;
+      height: 100vh;
+      width: 100vw;
+    }
+
+    /* ========== LOGIN PAGE ========== */
+    #login-page {
+      position: fixed; inset: 0;
+      display: flex; align-items: center; justify-content: center;
+      background: radial-gradient(ellipse at 40% 50%, #0d1b2a 0%, #050505 70%);
+      z-index: 1000;
+    }
+    .login-card {
+      background: rgba(255,255,255,0.06);
+      backdrop-filter: blur(20px);
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 20px;
+      padding: 52px 48px;
+      text-align: center;
+      width: 380px;
+      box-shadow: 0 32px 80px rgba(0,0,0,0.6);
+    }
+    .login-card h2 {
+      font-size: 26px;
+      font-weight: 600;
+      margin-bottom: 8px;
+      letter-spacing: -0.5px;
+    }
+    .login-card p {
+      color: rgba(255,255,255,0.45);
+      font-size: 13px;
+      margin-bottom: 36px;
+      line-height: 1.6;
+    }
+    .google-btn {
+      display: inline-flex; align-items: center; gap: 12px;
+      background: #4285F4;
+      color: #fff;
+      border: none;
+      border-radius: 10px;
+      padding: 14px 24px;
+      font-size: 15px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background 0.2s, transform 0.15s;
+      letter-spacing: 0.1px;
+    }
+    .google-btn:hover { background: #3367D6; transform: translateY(-1px); }
+    .google-btn svg { width:20px; height:20px; flex-shrink:0; }
+
+    /* ========== MAIN APP ========== */
+    #app { display:none; width:100%; height:100%; }
+
+    /* Header */
+    #header {
+      position: fixed; top: 0; left: 0; right: 0;
+      height: 56px;
+      display: flex; align-items: center;
+      padding: 0 20px;
+      background: rgba(10,10,10,0.9);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+      z-index: 100;
+      gap: 16px;
+    }
+    #header h1 { font-size: 16px; font-weight: 600; color: rgba(255,255,255,0.9); flex: 1; }
+
+    /* View buttons */
+    .view-buttons { display: flex; gap: 6px; }
+    .view-btn {
+      background: transparent;
+      color: rgba(255,255,255,0.4);
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 6px;
+      padding: 6px 14px;
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.8px;
+      cursor: pointer;
+      text-transform: uppercase;
+      transition: all 0.2s;
+    }
+    .view-btn:hover { color: #fff; border-color: rgba(255,255,255,0.3); }
+    .view-btn.active { color: #fff; background: rgba(255,255,255,0.12); border-color: rgba(255,255,255,0.3); }
+
+    /* User info */
+    #user-info { display:flex; align-items:center; gap:8px; font-size:13px; color:rgba(255,255,255,0.5); }
+    #user-avatar { width:28px; height:28px; border-radius:50%; object-fit:cover; }
+    #sign-out-btn {
+      background: transparent; color: rgba(255,255,255,0.3); border: 1px solid rgba(255,255,255,0.1);
+      border-radius:5px; padding:4px 10px; font-size:11px; cursor:pointer; transition: all 0.2s;
+    }
+    #sign-out-btn:hover { color:#fff; border-color: rgba(255,255,255,0.3); }
+
+    /* Legend */
+    #legend {
+      position: fixed; bottom: 20px; left: 20px;
+      background: rgba(10,10,10,0.85);
+      backdrop-filter: blur(10px);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px 16px;
+      z-index: 100;
+      font-size: 11px;
+    }
+    #legend .legend-title { color: rgba(255,255,255,0.4); margin-bottom:8px; font-size:10px; text-transform:uppercase; letter-spacing:1px; }
+    .legend-item { display: flex; align-items: center; gap: 8px; margin-bottom: 5px; color: rgba(255,255,255,0.65); }
+    .legend-dot { width: 10px; height: 10px; border-radius: 3px; }
+
+    /* Loading indicator */
+    #loading {
+      position: fixed; inset: 0; background: var(--bg);
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      z-index: 500; gap: 16px;
+    }
+    .spinner { width:36px; height:36px; border:3px solid rgba(255,255,255,0.1); border-top-color:#fff; border-radius:50%; animation: spin 0.7s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    #loading p { color: rgba(255,255,255,0.4); font-size: 13px; }
+
+    /* 3D canvas */
+    #scene-container {
+      position: fixed;
+      top: 56px; left: 0; right: 0; bottom: 0;
+    }
+
+    /* ========== ELEMENT TILES ========== */
+    .element {
+      width: 100px;
+      height: 120px;
+      border-radius: 8px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+      padding: 6px;
+      cursor: pointer;
+      overflow: hidden;
+      position: relative;
+      transition: opacity 0.3s;
+      border: 1px solid rgba(255,255,255,0.15);
+    }
+    .element:hover { border-color: rgba(255,255,255,0.5); }
+
+    .element.red    { background: linear-gradient(145deg, #7b1010, #3d0808); }
+    .element.orange { background: linear-gradient(145deg, #7a3a00, #3d1e00); }
+    .element.green  { background: linear-gradient(145deg, #0a4a1a, #052610); }
+
+    .el-header { display:flex; justify-content:space-between; width:100%; margin-bottom:4px; }
+    .el-idx { font-size:9px; color:rgba(255,255,255,0.4); font-weight:600; }
+    .el-country { font-size:9px; color:rgba(255,255,255,0.6); font-weight:700; letter-spacing:0.5px; }
+
+    .el-photo {
+      width: 58px; height: 58px;
+      border-radius: 50%;
+      object-fit: cover;
+      border: 2px solid rgba(255,255,255,0.25);
+      background: rgba(0,0,0,0.3);
+      flex-shrink: 0;
+    }
+
+    .el-name {
+      font-size: 8.5px;
+      font-weight: 600;
+      color: #fff;
+      text-align: center;
+      margin-top: 5px;
+      line-height: 1.2;
+      max-height: 22px;
+      overflow: hidden;
+      width: 100%;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+      padding: 0 2px;
+    }
+
+    .el-interest {
+      font-size: 7.5px;
+      color: rgba(255,255,255,0.5);
+      text-align: center;
+      margin-top: 2px;
+    }
+
+    .el-worth {
+      font-size: 7px;
+      color: rgba(255,255,255,0.4);
+      margin-top: 1px;
+    }
+  </style>
+</head>
+<body>
+
+<!-- ============ LOGIN PAGE ============ -->
+<div id="login-page">
+  <div class="login-card">
+    <h2>Welcome Back</h2>
+    <p>Sign in to access the People 3D Visualization platform and explore the interactive data.</p>
+    <button class="google-btn" onclick="triggerGoogleLogin()">
+      <svg viewBox="0 0 48 48">
+        <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
+        <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
+        <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
+        <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
+        <path fill="none" d="M0 0h48v48H0z"/>
+      </svg>
+      Sign in with Google
+    </button>
+    <div id="g_id_onload"
+      data-client_id="114956744353-l577a53gpmmvh97s1uba0n8mjqusabpk.apps.googleusercontent.com"
+      data-callback="handleCredentialResponse"
+      data-auto_prompt="false">
+    </div>
+  </div>
+</div>
+
+<!-- ============ LOADING ============ -->
+<div id="loading" style="display:none;">
+  <div class="spinner"></div>
+  <p>Building 3D visualization...</p>
+</div>
+
+<!-- ============ MAIN APP ============ -->
+<div id="app">
+  <div id="header">
+    <h1>People 3D Visualization</h1>
+    <div class="view-buttons">
+      <button class="view-btn active" onclick="transform('TABLE')" id="btn-TABLE">TABLE</button>
+      <button class="view-btn" onclick="transform('SPHERE')" id="btn-SPHERE">SPHERE</button>
+      <button class="view-btn" onclick="transform('HELIX')" id="btn-HELIX">HELIX</button>
+      <button class="view-btn" onclick="transform('GRID')" id="btn-GRID">GRID</button>
+    </div>
+    <div id="user-info">
+      <img id="user-avatar" src="" alt="" style="display:none"/>
+      <span id="user-name"></span>
+      <button id="sign-out-btn" onclick="signOut()">Sign out</button>
+    </div>
+  </div>
+
+  <div id="legend">
+    <div class="legend-title">Net Worth</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#c0392b"></div> &lt; $100K</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#e67e22"></div> $100K – $200K</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#27ae60"></div> &gt; $200K</div>
+  </div>
+
+  <div id="scene-container"></div>
+</div>
+
+<script>
+
+const GOOGLE_CLIENT_ID = '114956744353-l577a53gpmmvh97s1uba0n8mjqusabpk.apps.googleusercontent.com';
+
+const SHEET_ID = '1YGBLmn7u519LIk0Zv590rpG5QnM7NQ6nZszxQFIHaUU';
+const SHEET_RANGE = 'Sheet1!A:F';
+
+/* ============================================================
+   EMBEDDED DATA (200 people from CSV)
+   ============================================================ */
+const RAW_DATA = [{"name":"Lee Siew Suan","photo":"https://static.kasatria.com/pivot-img/photo/019.jpg","age":"25","country":"CN","interest":"Writing","netWorth":"$251,260.80"},{"name":"New Yee Chian","photo":"https://static.kasatria.com/pivot-img/photo/020.jpg","age":"23","country":"CN","interest":"Cooking","netWorth":"$60,393.60"},{"name":"Wong Thiam Fook","photo":"https://static.kasatria.com/pivot-img/photo/021.jpg","age":"30","country":"CN","interest":"Traveling","netWorth":"$212,140.80"},{"name":"Norsuzilawati Mohd Noor","photo":"https://static.kasatria.com/pivot-img/photo/022.jpg","age":"30","country":"MY","interest":"Painting","netWorth":"$208,228.80"},{"name":"Norzainah Omar","photo":"https://static.kasatria.com/pivot-img/photo/023.jpg","age":"30","country":"MY","interest":"Hiking","netWorth":"$106,555.20"},{"name":"Meghandran Nathy","photo":"https://static.kasatria.com/pivot-img/photo/024.jpg","age":"31","country":"IN","interest":"Cooking","netWorth":"$139,080.00"},{"name":"Joyshree Goswami","photo":"https://static.kasatria.com/pivot-img/photo/025.jpg","age":"35","country":"IN","interest":"Painting","netWorth":"$192,278.40"},{"name":"Geetha Maniam","photo":"https://static.kasatria.com/pivot-img/photo/026.jpg","age":"27","country":"IN","interest":"Cooking","netWorth":"$90,864.00"},{"name":"Abdul Rahim Osman","photo":"https://static.kasatria.com/pivot-img/photo/027.jpg","age":"30","country":"MY","interest":"Cooking","netWorth":"$141,859.20"},{"name":"Prem Anand Raj","photo":"https://static.kasatria.com/pivot-img/photo/028.jpg","age":"44","country":"IN","interest":"Gardening","netWorth":"$196,113.60"},{"name":"Piara Singh Sarwan Singh","photo":"https://static.kasatria.com/pivot-img/photo/029.jpg","age":"34","country":"IN","interest":"Writing","netWorth":"$207,960.00"},{"name":"Othman b Abdul Rahman","photo":"https://static.kasatria.com/pivot-img/photo/030.jpg","age":"53","country":"MY","interest":"Gardening","netWorth":"$193,200.00"},{"name":"Sathiaseelan Paul Thurai","photo":"https://static.kasatria.com/pivot-img/photo/031.jpg","age":"59","country":"IN","interest":"Gardening","netWorth":"$264,456.00"},{"name":"Abdul Farid Alias","photo":"https://static.kasatria.com/pivot-img/photo/MY0014.jpg","age":"36","country":"MY","interest":"Writing","netWorth":"$146,592.00"},{"name":"Abu Hassan Assari Ibrahim","photo":"https://static.kasatria.com/pivot-img/photo/MY0010.jpg","age":"43","country":"MY","interest":"Gardening","netWorth":"$213,657.60"},{"name":"Faridah Ahmad Iskandar","photo":"https://static.kasatria.com/pivot-img/photo/MY_003.jpg","age":"31","country":"MY","interest":"Writing","netWorth":"$271,516.80"},{"name":"Muzaffar Hisham","photo":"https://static.kasatria.com/pivot-img/photo/MY0009.jpg","age":"35","country":"MY","interest":"Cooking","netWorth":"$230,980.80"},{"name":"Isaac Cardinal","photo":"https://static.kasatria.com/pivot-img/photo/CA0088.jpg","age":"49","country":"US","interest":"Gardening","netWorth":"$259,252.80"},{"name":"Prabunathan A/L Gopal","photo":"https://static.kasatria.com/pivot-img/photo/IND_021.jpg","age":"29","country":"IN","interest":"Writing","netWorth":"$271,670.40"},{"name":"Taswin Zakaria","photo":"https://static.kasatria.com/pivot-img/photo/MY0012.jpg","age":"41","country":"MY","interest":"Gardening","netWorth":"$243,840.00"},{"name":"Crystal Carter","photo":"https://static.kasatria.com/pivot-img/photo/039.jpg","age":"35","country":"US","interest":"Cooking","netWorth":"$211,550.40"},{"name":"Vivian Grapentine","photo":"https://static.kasatria.com/pivot-img/photo/040.jpg","age":"36","country":"CN","interest":"Writing","netWorth":"$149,361.60"},{"name":"Joey De Leion","photo":"https://static.kasatria.com/pivot-img/photo/041.jpg","age":"35","country":"US","interest":"Hiking","netWorth":"$60,974.40"},{"name":"Mark Feehily","photo":"https://static.kasatria.com/pivot-img/photo/042.jpg","age":"30","country":"US","interest":"Cooking","netWorth":"$125,496.00"},{"name":"Cheong Choong Kong","photo":"https://static.kasatria.com/pivot-img/photo/114.jpg","age":"25","country":"CN","interest":"Painting","netWorth":"$111,412.80"},{"name":"George Lee Lap Wah","photo":"https://static.kasatria.com/pivot-img/photo/115.jpg","age":"31","country":"CN","interest":"Painting","netWorth":"$146,174.40"},{"name":"Yong Mei Theng","photo":"https://static.kasatria.com/pivot-img/photo/116.jpg","age":"28","country":"CN","interest":"Writing","netWorth":"$187,896.00"},{"name":"Tang Zhee Kim","photo":"https://static.kasatria.com/pivot-img/photo/117.jpg","age":"24","country":"CN","interest":"Painting","netWorth":"$264,355.20"},{"name":"Tan Miaw Wei","photo":"https://static.kasatria.com/pivot-img/photo/118.jpg","age":"25","country":"CN","interest":"Cooking","netWorth":"$101,841.60"},{"name":"Cheng Ming Soon","photo":"https://static.kasatria.com/pivot-img/photo/119.jpg","age":"18","country":"CN","interest":"Traveling","netWorth":"$210,835.20"},{"name":"Lee Fong Fong","photo":"https://static.kasatria.com/pivot-img/photo/120.jpg","age":"25","country":"CN","interest":"Painting","netWorth":"$193,017.60"},{"name":"Amir Amran Karim","photo":"https://static.kasatria.com/pivot-img/photo/121.jpg","age":"29","country":"MY","interest":"Cooking","netWorth":"$147,600.00"},{"name":"Krishnan CK Menon","photo":"https://static.kasatria.com/pivot-img/photo/122.jpg","age":"25","country":"IN","interest":"Cooking","netWorth":"$207,355.20"},{"name":"Aishwarya Rai","photo":"https://static.kasatria.com/pivot-img/photo/IND_041.jpg","age":"32","country":"IN","interest":"Hiking","netWorth":"$186,398.40"},{"name":"Simone Kumar Gopalan","photo":"https://static.kasatria.com/pivot-img/photo/124.jpg","age":"36","country":"IN","interest":"Hiking","netWorth":"$327,057.60"},{"name":"Maimoonah Hussain","photo":"https://static.kasatria.com/pivot-img/photo/125.jpg","age":"27","country":"MY","interest":"Cooking","netWorth":"$181,228.80"},{"name":"Chanda Kochar","photo":"https://static.kasatria.com/pivot-img/photo/126.jpg","age":"30","country":"IN","interest":"Hiking","netWorth":"$133,228.80"},{"name":"Shyamala Gopinath","photo":"https://static.kasatria.com/pivot-img/photo/127.jpg","age":"20","country":"IN","interest":"Traveling","netWorth":"$267,230.40"},{"name":"Suren Zedek","photo":"https://static.kasatria.com/pivot-img/photo/128.jpg","age":"35","country":"IN","interest":"Writing","netWorth":"$89,764.80"},{"name":"Danial Kuilan","photo":"https://static.kasatria.com/pivot-img/photo/129.jpg","age":"35","country":"IN","interest":"Writing","netWorth":"$246,686.40"},{"name":"Levi Asher Anamalai","photo":"https://static.kasatria.com/pivot-img/photo/130.jpg","age":"19","country":"IN","interest":"Traveling","netWorth":"$170,260.80"},{"name":"Tristan Martin","photo":"https://static.kasatria.com/pivot-img/photo/131.jpg","age":"52","country":"US","interest":"Gardening","netWorth":"$181,555.20"},{"name":"David Conner","photo":"https://static.kasatria.com/pivot-img/photo/CA0294.jpg","age":"55","country":"US","interest":"Gardening","netWorth":"$282,019.20"},{"name":"Kerry Jen Katona","photo":"https://static.kasatria.com/pivot-img/photo/CA0285.jpg","age":"43","country":"US","interest":"Gardening","netWorth":"$250,579.20"},{"name":"Gilbert Kohnke","photo":"https://static.kasatria.com/pivot-img/photo/134.jpg","age":"55","country":"US","interest":"Gardening","netWorth":"$344,318.40"},{"name":"Spencer Murray","photo":"https://static.kasatria.com/pivot-img/photo/135.jpg","age":"52","country":"US","interest":"Gardening","netWorth":"$240,638.40"},{"name":"Yaacob Mohd Zain","photo":"https://static.kasatria.com/pivot-img/photo/136.jpg","age":"24","country":"MY","interest":"Hiking","netWorth":"$205,372.80"},{"name":"Hatini Mat Husin","photo":"https://static.kasatria.com/pivot-img/photo/137.jpg","age":"28","country":"MY","interest":"Hiking","netWorth":"$350,774.40"},{"name":"Ariffin Alias","photo":"https://static.kasatria.com/pivot-img/photo/138.jpg","age":"28","country":"MY","interest":"Writing","netWorth":"$241,670.40"},{"name":"Abdul Malik A Rahman","photo":"https://static.kasatria.com/pivot-img/photo/139.jpg","age":"42","country":"MY","interest":"Gardening","netWorth":"$197,779.20"},{"name":"Samad Mahid Zain","photo":"https://static.kasatria.com/pivot-img/photo/140.jpg","age":"30","country":"MY","interest":"Hiking","netWorth":"$245,827.20"},{"name":"Johan Hashim","photo":"https://static.kasatria.com/pivot-img/photo/141.jpg","age":"34","country":"MY","interest":"Cooking","netWorth":"$184,915.20"},{"name":"Samsiah Zainal","photo":"https://static.kasatria.com/pivot-img/photo/142.jpg","age":"28","country":"MY","interest":"Painting","netWorth":"$259,180.80"},{"name":"Tay Eng Yaw","photo":"https://static.kasatria.com/pivot-img/photo/009.jpg","age":"27","country":"CN","interest":"Cooking","netWorth":"$188,457.60"},{"name":"Cynthiea Hong Pei Min","photo":"https://static.kasatria.com/pivot-img/photo/010.jpg","age":"22","country":"CN","interest":"Painting","netWorth":"$164,865.60"},{"name":"Lim Yong Siang","photo":"https://static.kasatria.com/pivot-img/photo/011.jpg","age":"40","country":"CN","interest":"Gardening","netWorth":"$347,481.60"},{"name":"Mohd Azam Mohd Bakar","photo":"https://static.kasatria.com/pivot-img/photo/018.jpg","age":"38","country":"MY","interest":"Cooking","netWorth":"$166,795.20"},{"name":"Jagathesan Shanmugam","photo":"https://static.kasatria.com/pivot-img/photo/043.jpg","age":"43","country":"IN","interest":"Gardening","netWorth":"$97,075.20"},{"name":"Christiana Tharsis","photo":"https://static.kasatria.com/pivot-img/photo/044.jpg","age":"35","country":"IN","interest":"Hiking","netWorth":"$243,014.40"},{"name":"Amutha Rakwan","photo":"https://static.kasatria.com/pivot-img/photo/045.jpg","age":"46","country":"IN","interest":"Gardening","netWorth":"$100,396.80"},{"name":"Wan Rosmawati Wan Ibrahim","photo":"https://static.kasatria.com/pivot-img/photo/046.jpg","age":"34","country":"MY","interest":"Cooking","netWorth":"$191,616.00"},{"name":"Khatimah Mahadi","photo":"https://static.kasatria.com/pivot-img/photo/047.jpg","age":"29","country":"MY","interest":"Painting","netWorth":"$265,171.20"},{"name":"Nor Rozita Nordin","photo":"https://static.kasatria.com/pivot-img/photo/048.jpg","age":"32","country":"MY","interest":"Painting","netWorth":"$246,158.40"},{"name":"Abdul Aziz Man","photo":"https://static.kasatria.com/pivot-img/photo/049.jpg","age":"32","country":"MY","interest":"Cooking","netWorth":"$312,158.40"},{"name":"Nimma Safira Khalid","photo":"https://static.kasatria.com/pivot-img/photo/050.jpg","age":"19","country":"MY","interest":"Traveling","netWorth":"$258,384.00"},{"name":"Lam Swee Kim","photo":"https://static.kasatria.com/pivot-img/photo/012.jpg","age":"23","country":"CN","interest":"Painting","netWorth":"$148,718.40"},{"name":"Tai Yee Shian","photo":"https://static.kasatria.com/pivot-img/photo/013.jpg","age":"34","country":"CN","interest":"Painting","netWorth":"$195,206.40"},{"name":"Euodia Ooi","photo":"https://static.kasatria.com/pivot-img/photo/014.jpg","age":"27","country":"CN","interest":"Writing","netWorth":"$52,118.40"},{"name":"Ng Jia Nian","photo":"https://static.kasatria.com/pivot-img/photo/015.jpg","age":"24","country":"CN","interest":"Cooking","netWorth":"$340,464.00"},{"name":"Ong Tze Jun","photo":"https://static.kasatria.com/pivot-img/photo/016.jpg","age":"36","country":"CN","interest":"Hiking","netWorth":"$159,739.20"},{"name":"Brian Choong Chee Keong","photo":"https://static.kasatria.com/pivot-img/photo/017.jpg","age":"21","country":"CN","interest":"Traveling","netWorth":"$347,659.20"},{"name":"Shaharuddin Abg Mansor","photo":"https://static.kasatria.com/pivot-img/photo/086.jpg","age":"47","country":"MY","interest":"Gardening","netWorth":"$351,993.60"},{"name":"Mohd Izani Ashari","photo":"https://static.kasatria.com/pivot-img/photo/087.jpg","age":"30","country":"MY","interest":"Traveling","netWorth":"$230,179.20"},{"name":"Roshan Thiran","photo":"https://static.kasatria.com/pivot-img/photo/088.jpg","age":"26","country":"MY","interest":"Cooking","netWorth":"$369,652.80"},{"name":"Shahazwan Harris","photo":"https://static.kasatria.com/pivot-img/photo/089.jpg","age":"30","country":"MY","interest":"Painting","netWorth":"$364,948.80"},{"name":"Saiful Dzulkifly","photo":"https://static.kasatria.com/pivot-img/photo/090.jpg","age":"36","country":"MY","interest":"Painting","netWorth":"$360,115.20"},{"name":"Jamie Haniff Ramlee","photo":"https://static.kasatria.com/pivot-img/photo/091.jpg","age":"47","country":"MY","interest":"Gardening","netWorth":"$174,312.00"},{"name":"Azim Azli","photo":"https://static.kasatria.com/pivot-img/photo/092.jpg","age":"50","country":"MY","interest":"Gardening","netWorth":"$160,252.80"},{"name":"Zaida Khalida Shaari","photo":"https://static.kasatria.com/pivot-img/photo/093.jpg","age":"25","country":"MY","interest":"Cooking","netWorth":"$163,104.00"},{"name":"Nurul Nabila Huda Che Ad","photo":"https://static.kasatria.com/pivot-img/photo/094.jpg","age":"39","country":"MY","interest":"Hiking","netWorth":"$247,579.20"},{"name":"Sarimah Samad-Imran","photo":"https://static.kasatria.com/pivot-img/photo/095.jpg","age":"29","country":"MY","interest":"Painting","netWorth":"$102,580.80"},{"name":"Wan Nur Nordiyana","photo":"https://static.kasatria.com/pivot-img/photo/096.jpg","age":"25","country":"MY","interest":"Cooking","netWorth":"$264,705.60"},{"name":"Fatimah Husna","photo":"https://static.kasatria.com/pivot-img/photo/097.jpg","age":"25","country":"MY","interest":"Writing","netWorth":"$72,710.40"},{"name":"Nurshafiqah Saad","photo":"https://static.kasatria.com/pivot-img/photo/098.jpg","age":"30","country":"MY","interest":"Cooking","netWorth":"$128,750.40"},{"name":"Amerjit Singh Bhag Singh","photo":"https://static.kasatria.com/pivot-img/photo/IND_005.jpg","age":"31","country":"IN","interest":"Writing","netWorth":"$205,171.20"},{"name":"Nora Abd Manaf","photo":"https://static.kasatria.com/pivot-img/photo/100.jpg","age":"29","country":"MY","interest":"Writing","netWorth":"$168,096.00"},{"name":"Walter Michael Chan","photo":"https://static.kasatria.com/pivot-img/photo/101.jpg","age":"29","country":"CN","interest":"Cooking","netWorth":"$197,083.20"},{"name":"Teng Chean Choy","photo":"https://static.kasatria.com/pivot-img/photo/102.jpg","age":"32","country":"CN","interest":"Cooking","netWorth":"$145,862.40"},{"name":"Chua Bee Chin","photo":"https://static.kasatria.com/pivot-img/photo/103.jpg","age":"23","country":"CN","interest":"Painting","netWorth":"$159,883.20"},{"name":"Santhanamary John","photo":"https://static.kasatria.com/pivot-img/photo/155.jpg","age":"25","country":"IN","interest":"Writing","netWorth":"$135,878.40"},{"name":"Nor Arzlin Redzwan","photo":"https://static.kasatria.com/pivot-img/photo/156.jpg","age":"42","country":"MY","interest":"Gardening","netWorth":"$66,907.20"},{"name":"Zuraidah Atan","photo":"https://static.kasatria.com/pivot-img/photo/157.jpg","age":"28","country":"MY","interest":"Cooking","netWorth":"$104,649.60"},{"name":"Shahrul Izzan Abdul Karim","photo":"https://static.kasatria.com/pivot-img/photo/158.jpg","age":"29","country":"MY","interest":"Traveling","netWorth":"$46,363.20"},{"name":"Putri Shireen Syed Othman","photo":"https://static.kasatria.com/pivot-img/photo/m_047.jpg","age":"33","country":"MY","interest":"Painting","netWorth":"$96,628.80"},{"name":"Abdul Hadzi Marzuki","photo":"https://static.kasatria.com/pivot-img/photo/160.jpg","age":"34","country":"MY","interest":"Writing","netWorth":"$117,273.60"},{"name":"Yasmin Ahmad","photo":"https://static.kasatria.com/pivot-img/photo/161.jpg","age":"24","country":"MY","interest":"Painting","netWorth":"$58,833.60"},{"name":"Halipah Binti Esa","photo":"https://static.kasatria.com/pivot-img/photo/162.jpg","age":"29","country":"MY","interest":"Traveling","netWorth":"$102,676.80"},{"name":"Habibah Abdul","photo":"https://static.kasatria.com/pivot-img/photo/163.jpg","age":"37","country":"MY","interest":"Painting","netWorth":"$210,993.60"},{"name":"Zulkarnain Ahmad","photo":"https://static.kasatria.com/pivot-img/photo/164.jpg","age":"34","country":"MY","interest":"Writing","netWorth":"$71,361.60"},{"name":"Fauziah Mohd Noor","photo":"https://static.kasatria.com/pivot-img/photo/165.jpg","age":"24","country":"MY","interest":"Painting","netWorth":"$126,532.80"},{"name":"Mohd Yunus Idris","photo":"https://static.kasatria.com/pivot-img/photo/196.jpg","age":"39","country":"MY","interest":"Writing","netWorth":"$143,112.00"},{"name":"Ahmad Jauhari Yahya","photo":"https://static.kasatria.com/pivot-img/photo/197.jpg","age":"21","country":"MY","interest":"Traveling","netWorth":"$159,422.40"},{"name":"Saifol Bahri Mohamad Shamlan","photo":"https://static.kasatria.com/pivot-img/photo/198.jpg","age":"34","country":"MY","interest":"Writing","netWorth":"$198,936.00"},{"name":"Isham Ishak","photo":"https://static.kasatria.com/pivot-img/photo/199.jpg","age":"40","country":"MY","interest":"Gardening","netWorth":"$112,598.40"},{"name":"Mohd Hafizuddin Mansor","photo":"https://static.kasatria.com/pivot-img/photo/200.jpg","age":"34","country":"MY","interest":"Hiking","netWorth":"$99,624.00"},{"name":"Stuart Cardell","photo":"https://static.kasatria.com/pivot-img/photo/CA0292.jpg","age":"44","country":"US","interest":"Gardening","netWorth":"$44,140.80"},{"name":"Abigail Wellington","photo":"https://static.kasatria.com/pivot-img/photo/CA0237.jpg","age":"33","country":"US","interest":"Painting","netWorth":"$126,201.60"},{"name":"Gino Chin","photo":"https://static.kasatria.com/pivot-img/photo/c_035.jpg","age":"33","country":"CN","interest":"Cooking","netWorth":"$178,569.60"},{"name":"Meon Khor","photo":"https://static.kasatria.com/pivot-img/photo/c_016.jpg","age":"37","country":"CN","interest":"Writing","netWorth":"$132,936.00"},{"name":"Lim Joo ann","photo":"https://static.kasatria.com/pivot-img/photo/c_013.jpg","age":"30","country":"CN","interest":"Writing","netWorth":"$183,110.40"},{"name":"Yong Hai Wen","photo":"https://static.kasatria.com/pivot-img/photo/CN_038.jpg","age":"19","country":"CN","interest":"Traveling","netWorth":"$259,123.20"},{"name":"Yuki Low Mei Shan","photo":"https://static.kasatria.com/pivot-img/photo/CN_024.jpg","age":"28","country":"CN","interest":"Hiking","netWorth":"$191,016.00"},{"name":"Jessica Tee Yan Lai","photo":"https://static.kasatria.com/pivot-img/photo/J_013.jpg","age":"36","country":"CN","interest":"Hiking","netWorth":"$152,433.60"},{"name":"Sam Yam","photo":"https://static.kasatria.com/pivot-img/photo/J_003.jpg","age":"29","country":"CN","interest":"Cooking","netWorth":"$57,499.20"},{"name":"Shanker Jorrama","photo":"https://static.kasatria.com/pivot-img/photo/IND_057.jpg","age":"36","country":"IN","interest":"Writing","netWorth":"$220,142.40"},{"name":"Vick Viknes","photo":"https://static.kasatria.com/pivot-img/photo/IND_010.jpg","age":"21","country":"IN","interest":"Painting","netWorth":"$267,307.20"},{"name":"Arul Krishnan","photo":"https://static.kasatria.com/pivot-img/photo/IND_035.jpg","age":"35","country":"IN","interest":"Hiking","netWorth":"$69,883.20"},{"name":"Shamini Mohanan","photo":"https://static.kasatria.com/pivot-img/photo/IND_014.jpg","age":"28","country":"IN","interest":"Writing","netWorth":"$363,681.60"},{"name":"Theodore Frazer","photo":"https://static.kasatria.com/pivot-img/photo/o_009.jpg","age":"49","country":"US","interest":"Gardening","netWorth":"$361,166.40"},{"name":"Aju Varghese","photo":"https://static.kasatria.com/pivot-img/photo/IND_028.jpg","age":"43","country":"IN","interest":"Gardening","netWorth":"$324,686.40"},{"name":"Shahrukh Khan","photo":"https://static.kasatria.com/pivot-img/photo/IND_032.jpg","age":"40","country":"IN","interest":"Gardening","netWorth":"$287,155.20"},{"name":"Prithviraj Sukumaran","photo":"https://static.kasatria.com/pivot-img/photo/IND_040.jpg","age":"50","country":"IN","interest":"Gardening","netWorth":"$363,739.20"},{"name":"Sarah Miller","photo":"https://static.kasatria.com/pivot-img/photo/CA0134.jpg","age":"32","country":"US","interest":"Painting","netWorth":"$101,832.00"},{"name":"Monali Thakur","photo":"https://static.kasatria.com/pivot-img/photo/IND_016.jpg","age":"29","country":"IN","interest":"Painting","netWorth":"$162,710.40"},{"name":"Keerubalami Ponnudi","photo":"https://static.kasatria.com/pivot-img/photo/IND_044.jpg","age":"36","country":"IN","interest":"Writing","netWorth":"$177,052.80"},{"name":"Saint Sahana","photo":"https://static.kasatria.com/pivot-img/photo/i_023.jpg","age":"37","country":"IN","interest":"Hiking","netWorth":"$314,136.00"},{"name":"Munish Thabur","photo":"https://static.kasatria.com/pivot-img/photo/m_020.jpg","age":"28","country":"MY","interest":"Hiking","netWorth":"$171,758.40"},{"name":"Yogesh Balakrishnamur","photo":"https://static.kasatria.com/pivot-img/photo/IND_011.jpg","age":"21","country":"IN","interest":"Painting","netWorth":"$238,915.20"},{"name":"Sharmilla Mogan","photo":"https://static.kasatria.com/pivot-img/photo/IND_049.jpg","age":"19","country":"IN","interest":"Traveling","netWorth":"$173,740.80"},{"name":"Janesree Gunasegern","photo":"https://static.kasatria.com/pivot-img/photo/IND_045.jpg","age":"32","country":"IN","interest":"Painting","netWorth":"$187,512.00"},{"name":"Preya Nadarasa","photo":"https://static.kasatria.com/pivot-img/photo/i_018.jpg","age":"26","country":"IN","interest":"Cooking","netWorth":"$247,233.60"},{"name":"Uma Shamini","photo":"https://static.kasatria.com/pivot-img/photo/i_028.jpg","age":"24","country":"IN","interest":"Cooking","netWorth":"$201,451.20"},{"name":"Geetha Kumar","photo":"https://static.kasatria.com/pivot-img/photo/IND_053.jpg","age":"18","country":"IN","interest":"Traveling","netWorth":"$164,433.60"},{"name":"Jeeva Rajadran","photo":"https://static.kasatria.com/pivot-img/photo/IND_031.jpg","age":"38","country":"IN","interest":"Cooking","netWorth":"$192,969.60"},{"name":"Nadaraajan Perumal","photo":"https://static.kasatria.com/pivot-img/photo/IND_008.jpg","age":"25","country":"IN","interest":"Writing","netWorth":"$165,604.80"},{"name":"Shri Gobaradhan","photo":"https://static.kasatria.com/pivot-img/photo/IND_039.jpg","age":"39","country":"IN","interest":"Writing","netWorth":"$218,740.80"},{"name":"Satees Muniady","photo":"https://static.kasatria.com/pivot-img/photo/IND_034.jpg","age":"44","country":"IN","interest":"Gardening","netWorth":"$191,673.60"},{"name":"Nur Syazwani Nabilah Ibrahim","photo":"https://static.kasatria.com/pivot-img/photo/m_190.jpg","age":"33","country":"MY","interest":"Painting","netWorth":"$210,110.40"},{"name":"Geetha Davethas","photo":"https://static.kasatria.com/pivot-img/photo/IND_042.jpg","age":"24","country":"IN","interest":"Hiking","netWorth":"$199,689.60"},{"name":"Pricella Ance","photo":"https://static.kasatria.com/pivot-img/photo/G_027.jpg","age":"34","country":"US","interest":"Cooking","netWorth":"$141,801.60"},{"name":"Kumarran Thanrayan","photo":"https://static.kasatria.com/pivot-img/photo/i_013.jpg","age":"28","country":"IN","interest":"Cooking","netWorth":"$128,222.40"},{"name":"Tineswary Pannaparon","photo":"https://static.kasatria.com/pivot-img/photo/i_002.jpg","age":"21","country":"IN","interest":"Painting","netWorth":"$94,281.60"},{"name":"Vinothyni Anannthi","photo":"https://static.kasatria.com/pivot-img/photo/IND_015.jpg","age":"22","country":"IN","interest":"Painting","netWorth":"$357,902.40"},{"name":"Pilva Bhatia","photo":"https://static.kasatria.com/pivot-img/photo/IND_013.jpg","age":"29","country":"IN","interest":"Painting","netWorth":"$213,988.80"},{"name":"Wan Nahijah Mohamad","photo":"https://static.kasatria.com/pivot-img/photo/m_027.jpg","age":"24","country":"MY","interest":"Painting","netWorth":"$183,710.40"},{"name":"Rahimi Muhamad","photo":"https://static.kasatria.com/pivot-img/photo/m_066.jpg","age":"30","country":"MY","interest":"Writing","netWorth":"$191,452.80"},{"name":"Shuhada Shahira","photo":"https://static.kasatria.com/pivot-img/photo/m_090.jpg","age":"19","country":"MY","interest":"Traveling","netWorth":"$258,057.60"},{"name":"Yana Husin","photo":"https://static.kasatria.com/pivot-img/photo/mus_202.jpg","age":"49","country":"MY","interest":"Gardening","netWorth":"$129,523.20"},{"name":"Yusri Shafie","photo":"https://static.kasatria.com/pivot-img/photo/mus_163.jpg","age":"28","country":"MY","interest":"Hiking","netWorth":"$166,843.20"},{"name":"Nurul Shafiza Mat Isa","photo":"https://static.kasatria.com/pivot-img/photo/mus_166.jpg","age":"32","country":"MY","interest":"Painting","netWorth":"$257,068.80"},{"name":"Aidan Ohara","photo":"https://static.kasatria.com/pivot-img/photo/mus_194.jpg","age":"27","country":"MY","interest":"Hiking","netWorth":"$260,635.20"},{"name":"Ella Berry","photo":"https://static.kasatria.com/pivot-img/photo/CA0128.jpg","age":"35","country":"US","interest":"Cooking","netWorth":"$131,736.00"},{"name":"Noor Atheerah Zulkipli","photo":"https://static.kasatria.com/pivot-img/photo/mus_178.jpg","age":"31","country":"MY","interest":"Cooking","netWorth":"$154,046.40"},{"name":"Ikmal Zakaria","photo":"https://static.kasatria.com/pivot-img/photo/m_185.jpg","age":"32","country":"MY","interest":"Painting","netWorth":"$197,380.80"},{"name":"Syed Azuwan Syed Helmi","photo":"https://static.kasatria.com/pivot-img/photo/p_047.jpg","age":"34","country":"MY","interest":"Writing","netWorth":"$163,905.60"},{"name":"Haziq Zamri","photo":"https://static.kasatria.com/pivot-img/photo/m_187.jpg","age":"27","country":"MY","interest":"Painting","netWorth":"$99,048.00"},{"name":"Nor Fazila","photo":"https://static.kasatria.com/pivot-img/photo/mus_056.jpg","age":"29","country":"MY","interest":"Cooking","netWorth":"$189,384.00"},{"name":"Muhd Ruzhan","photo":"https://static.kasatria.com/pivot-img/photo/m_116.jpg","age":"28","country":"MY","interest":"Traveling","netWorth":"$232,641.60"},{"name":"Azhar Masli","photo":"https://static.kasatria.com/pivot-img/photo/m_154.jpg","age":"29","country":"MY","interest":"Writing","netWorth":"$212,256.00"},{"name":"Mohd Riduan Hamin","photo":"https://static.kasatria.com/pivot-img/photo/m_120.jpg","age":"40","country":"MY","interest":"Gardening","netWorth":"$235,483.20"},{"name":"Freya Rogers","photo":"https://static.kasatria.com/pivot-img/photo/CA0274.jpg","age":"30","country":"US","interest":"Painting","netWorth":"$240,427.20"},{"name":"Harris Azman","photo":"https://static.kasatria.com/pivot-img/photo/m_181.jpg","age":"38","country":"MY","interest":"Writing","netWorth":"$232,377.60"},{"name":"Muhammad Adli Azri","photo":"https://static.kasatria.com/pivot-img/photo/th_337.jpg","age":"24","country":"MY","interest":"Painting","netWorth":"$280,248.00"},{"name":"Jafri Mohd","photo":"https://static.kasatria.com/pivot-img/photo/m_177.jpg","age":"29","country":"MY","interest":"Hiking","netWorth":"$314,107.20"},{"name":"Aten Zulkifly","photo":"https://static.kasatria.com/pivot-img/photo/mus_019.jpg","age":"30","country":"MY","interest":"Writing","netWorth":"$237,307.20"},{"name":"Eyqa Hassan","photo":"https://static.kasatria.com/pivot-img/photo/mus_045.jpg","age":"25","country":"MY","interest":"Painting","netWorth":"$112,651.20"},{"name":"Muhd Yazid","photo":"https://static.kasatria.com/pivot-img/photo/m_018.jpg","age":"30","country":"MY","interest":"Hiking","netWorth":"$76,492.80"},{"name":"Muhammad Syafiq Suhaimi","photo":"https://static.kasatria.com/pivot-img/photo/p_027.jpg","age":"39","country":"MY","interest":"Writing","netWorth":"$341,563.20"},{"name":"Nashrul Amin","photo":"https://static.kasatria.com/pivot-img/photo/p_014.jpg","age":"62","country":"MY","interest":"Gardening","netWorth":"$154,632.00"},{"name":"Nur Syahirah","photo":"https://static.kasatria.com/pivot-img/photo/mus_064.jpg","age":"21","country":"MY","interest":"Painting","netWorth":"$148,492.80"},{"name":"Syamimy Ghani","photo":"https://static.kasatria.com/pivot-img/photo/mus_114.jpg","age":"20","country":"MY","interest":"Traveling","netWorth":"$200,347.20"},{"name":"Shahir Sukri","photo":"https://static.kasatria.com/pivot-img/photo/p_028.jpg","age":"34","country":"MY","interest":"Painting","netWorth":"$282,700.80"},{"name":"Amierul Miyul","photo":"https://static.kasatria.com/pivot-img/photo/p_030.jpg","age":"48","country":"MY","interest":"Gardening","netWorth":"$321,004.80"},{"name":"Nara Sharkirra","photo":"https://static.kasatria.com/pivot-img/photo/mus_090.jpg","age":"23","country":"MY","interest":"Writing","netWorth":"$338,539.20"},{"name":"Muhamad Hafiz Bob","photo":"https://static.kasatria.com/pivot-img/photo/p_022.jpg","age":"59","country":"MY","interest":"Gardening","netWorth":"$240,312.00"},{"name":"Mohd Shahril","photo":"https://static.kasatria.com/pivot-img/photo/p_023.jpg","age":"48","country":"MY","interest":"Gardening","netWorth":"$252,984.00"},{"name":"Eyka Abdul Ghani","photo":"https://static.kasatria.com/pivot-img/photo/mus_091.jpg","age":"23","country":"MY","interest":"Traveling","netWorth":"$233,726.40"},{"name":"Mohamad Khuzairy","photo":"https://static.kasatria.com/pivot-img/photo/m_167.jpg","age":"33","country":"MY","interest":"Cooking","netWorth":"$118,766.40"},{"name":"Nana Hanna","photo":"https://static.kasatria.com/pivot-img/photo/m_179.jpg","age":"20","country":"MY","interest":"Traveling","netWorth":"$226,276.80"},{"name":"Mohd Hanafi Azhar","photo":"https://static.kasatria.com/pivot-img/photo/p_034.jpg","age":"62","country":"MY","interest":"Gardening","netWorth":"$332,568.00"},{"name":"Zenki Afra","photo":"https://static.kasatria.com/pivot-img/photo/p_045.jpg","age":"60","country":"MY","interest":"Gardening","netWorth":"$168,600.00"},{"name":"Mohamad Hairie","photo":"https://static.kasatria.com/pivot-img/photo/p_050.jpg","age":"48","country":"MY","interest":"Gardening","netWorth":"$300,566.40"},{"name":"Mohd Syafiq","photo":"https://static.kasatria.com/pivot-img/photo/m_168.jpg","age":"57","country":"MY","interest":"Gardening","netWorth":"$215,164.80"},{"name":"Muhammad Ashri","photo":"https://static.kasatria.com/pivot-img/photo/m_165.jpg","age":"27","country":"MY","interest":"Traveling","netWorth":"$206,568.00"},{"name":"Yusni Asnida","photo":"https://static.kasatria.com/pivot-img/photo/mus_024.jpg","age":"20","country":"MY","interest":"Traveling","netWorth":"$167,016.00"},{"name":"Shaheera Mohd Aniq","photo":"https://static.kasatria.com/pivot-img/photo/m_049.jpg","age":"19","country":"MY","interest":"Traveling","netWorth":"$248,865.60"},{"name":"Nursyamimi Atiqah","photo":"https://static.kasatria.com/pivot-img/photo/m_103.jpg","age":"27","country":"MY","interest":"Cooking","netWorth":"$288,734.40"},{"name":"Catherine Wheeler","photo":"https://static.kasatria.com/pivot-img/photo/G_038.jpg","age":"23","country":"US","interest":"Hiking","netWorth":"$53,697.60"},{"name":"Azizah Mahzan","photo":"https://static.kasatria.com/pivot-img/photo/m_110.jpg","age":"28","country":"MY","interest":"Hiking","netWorth":"$210,508.80"},{"name":"Mohd Azmi","photo":"https://static.kasatria.com/pivot-img/photo/m_149.jpg","age":"30","country":"MY","interest":"Traveling","netWorth":"$212,006.40"},{"name":"Anastasia Morrison","photo":"https://static.kasatria.com/pivot-img/photo/G_035.jpg","age":"33","country":"US","interest":"Hiking","netWorth":"$71,625.60"},{"name":"Razak Muhaidin","photo":"https://static.kasatria.com/pivot-img/photo/ph_151.jpg","age":"40","country":"MY","interest":"Gardening","netWorth":"$259,934.40"},{"name":"Helena Tillsley","photo":"https://static.kasatria.com/pivot-img/photo/o_014.jpg","age":"45","country":"US","interest":"Gardening","netWorth":"$192,369.60"},{"name":"Ryder Fletcher","photo":"https://static.kasatria.com/pivot-img/photo/G_057.jpg","age":"50","country":"US","interest":"Gardening","netWorth":"$257,323.20"},{"name":"Sara Fessenden","photo":"https://static.kasatria.com/pivot-img/photo/G_058.jpg","age":"38","country":"US","interest":"Writing","netWorth":"$145,972.80"},{"name":"Jeffrey Ewing","photo":"https://static.kasatria.com/pivot-img/photo/J_011.jpg","age":"49","country":"CN","interest":"Gardening","netWorth":"$254,068.80"},{"name":"Dawson Hoffman","photo":"https://static.kasatria.com/pivot-img/photo/CA0162.jpg","age":"38","country":"US","interest":"Cooking","netWorth":"$181,804.80"},{"name":"Jonne Macdonald","photo":"https://static.kasatria.com/pivot-img/photo/G_052.jpg","age":"36","country":"US","interest":"Hiking","netWorth":"$212,760.00"},{"name":"Pierre Henry","photo":"https://static.kasatria.com/pivot-img/photo/CA0267.jpg","age":"52","country":"US","interest":"Gardening","netWorth":"$127,704.00"},{"name":"Collen McClintock","photo":"https://static.kasatria.com/pivot-img/photo/G_039.jpg","age":"51","country":"US","interest":"Gardening","netWorth":"$261,883.20"}];
+
+/* ============================================================
+   HELPERS
+   ============================================================ */
+function parseNetWorth(str) {
+  return parseFloat(str.replace(/[$,]/g, '')) || 0;
+}
+function getColorClass(str) {
+  const v = parseNetWorth(str);
+  if (v < 100000) return 'red';
+  if (v <= 200000) return 'orange';
+  return 'green';
+}
+
+/* ============================================================
+   GOOGLE AUTH
+   ============================================================ */
+function triggerGoogleLogin() {
+  // Uses Google Identity Services popup flow
+  google.accounts.id.initialize({
+    client_id: GOOGLE_CLIENT_ID,
+    callback: handleCredentialResponse
+  });
+  google.accounts.id.prompt((notification) => {
+    if (notification.isNotDisplayed() || notification.isSkippedMoment()) {
+      // Fallback: open one-tap
+      google.accounts.oauth2.initTokenClient({
+        client_id: GOOGLE_CLIENT_ID,
+        scope: 'profile email',
+        callback: (resp) => {
+          if (resp.access_token) loginWithToken(resp.access_token);
+        }
+      }).requestAccessToken();
+    }
+  });
+}
+
+function handleCredentialResponse(response) {
+  // Decode the JWT credential
+  const payload = JSON.parse(atob(response.credential.split('.')[1]));
+  onLoginSuccess(payload.name, payload.picture);
+}
+
+async function loginWithToken(token) {
+  const res = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+    headers: { Authorization: 'Bearer ' + token }
+  });
+  const info = await res.json();
+  onLoginSuccess(info.name, info.picture);
+}
+
+function onLoginSuccess(name, picture) {
+  document.getElementById('login-page').style.display = 'none';
+  document.getElementById('loading').style.display = 'flex';
+  document.getElementById('user-name').textContent = name;
+  if (picture) {
+    const av = document.getElementById('user-avatar');
+    av.src = picture; av.style.display = 'block';
+  }
+  setTimeout(initScene, 100);
+}
+
+function signOut() {
+  google.accounts.id.disableAutoSelect();
+  document.getElementById('app').style.display = 'none';
+  document.getElementById('login-page').style.display = 'flex';
+}
+
+// DEV BYPASS — remove in production
+window.devLogin = function() {
+  onLoginSuccess('Demo User', '');
+};
+
+/* ============================================================
+   SCENE SETUP
+   ============================================================ */
+let camera, scene, renderer;
+let objects = [], targets = { TABLE:[], SPHERE:[], HELIX:[], GRID:[] };
+let currentView = 'TABLE';
+const TILE_W = 110, TILE_H = 130, GAP = 8;
+
+function initScene() {
+  const container = document.getElementById('scene-container');
+  const W = container.clientWidth, H = container.clientHeight;
+
+  // Camera
+  camera = new THREE.PerspectiveCamera(40, W / H, 1, 10000);
+  camera.position.set(0, 0, 3000);
+
+  // Scene
+  scene = new THREE.Scene();
+
+  // CSS3D Renderer
+  renderer = new THREE.CSS3DRenderer();
+  renderer.setSize(W, H);
+  container.appendChild(renderer.domElement);
+
+  // Build tiles
+  RAW_DATA.forEach((d, i) => {
+    const div = document.createElement('div');
+    div.className = 'element ' + getColorClass(d.netWorth);
+
+    div.innerHTML = `
+      <div class="el-header">
+        <span class="el-idx">${i + 1}</span>
+        <span class="el-country">${d.country}</span>
+      </div>
+      <img class="el-photo" src="${d.photo}" alt="${d.name}" loading="lazy"
+           onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 58 58%22%3E%3Crect width=%2258%22 height=%2258%22 rx=%2229%22 fill=%22%23333%22/%3E%3Ctext x=%2229%22 y=%2234%22 text-anchor=%22middle%22 fill=%22%23888%22 font-size=%2218%22%3E?%3C/text%3E%3C/svg%3E'"/>
+      <div class="el-name">${d.name}</div>
+      <div class="el-interest">${d.interest}</div>
+      <div class="el-worth">${d.netWorth}</div>
+    `;
+
+    const obj = new THREE.CSS3DObject(div);
+    obj.position.set(Math.random() * 4000 - 2000, Math.random() * 4000 - 2000, Math.random() * 4000 - 2000);
+    scene.add(obj);
+    objects.push(obj);
+  });
+
+  computeTargets();
+
+  // Mouse drag to orbit
+  setupControls(container);
+
+  // Hide loading, show app
+  document.getElementById('loading').style.display = 'none';
+  document.getElementById('app').style.display = 'block';
+
+  transform('TABLE');
+  animate();
+
+  window.addEventListener('resize', onResize);
+}
+
+/* ============================================================
+   COMPUTE TARGET POSITIONS
+   ============================================================ */
+function computeTargets() {
+  const n = RAW_DATA.length; // 200
+
+  /* TABLE  20 cols × 10 rows */
+  {
+    const cols = 20, rows = 10;
+    const sx = TILE_W + GAP, sy = TILE_H + GAP;
+    for (let i = 0; i < n; i++) {
+      const col = i % cols, row = Math.floor(i / cols);
+      const obj = new THREE.Object3D();
+      obj.position.set(
+        col * sx - (cols - 1) * sx / 2,
+        -row * sy + (rows - 1) * sy / 2,
+        0
+      );
+      targets.TABLE.push(obj);
+    }
+  }
+
+  /* SPHERE */
+  {
+    const phi = Math.PI * (3 - Math.sqrt(5)); // golden angle
+    for (let i = 0; i < n; i++) {
+      const y = 1 - (i / (n - 1)) * 2;
+      const r = Math.sqrt(1 - y * y);
+      const theta = phi * i;
+      const obj = new THREE.Object3D();
+      const R = 900;
+      obj.position.set(R * r * Math.cos(theta), R * y, R * r * Math.sin(theta));
+      obj.lookAt(new THREE.Vector3(0, 0, 0));
+      // Rotate 180 so face points outward
+      obj.rotation.y += Math.PI;
+      targets.SPHERE.push(obj);
+    }
+  }
+
+  /* HELIX — double helix */
+  {
+    const R = 700, pitch = 100;
+    for (let i = 0; i < n; i++) {
+      const strand = i % 2; // 0 = helix A, 1 = helix B
+      const idx = Math.floor(i / 2);
+      const total = Math.ceil(n / 2);
+      const t = (idx / total) * Math.PI * 6;
+      const offset = strand * Math.PI; // half-turn offset for second strand
+      const angle = t + offset;
+      const y = (idx - total / 2) * pitch;
+      const obj = new THREE.Object3D();
+      obj.position.set(R * Math.cos(angle), y, R * Math.sin(angle));
+      obj.rotation.y = -angle;
+      targets.HELIX.push(obj);
+    }
+  }
+
+  /* GRID  10 (x) × 4 (y) × 5 (z) = 200 */
+  {
+    const nx = 10, ny = 4, nz = 5;
+    const sx = TILE_W + GAP + 10, sy = TILE_H + GAP + 10, sz = 200;
+    let i = 0;
+    for (let iz = 0; iz < nz; iz++)
+    for (let iy = 0; iy < ny; iy++)
+    for (let ix = 0; ix < nx; ix++) {
+      const obj = new THREE.Object3D();
+      obj.position.set(
+        ix * sx - (nx - 1) * sx / 2,
+        -iy * sy + (ny - 1) * sy / 2,
+        -iz * sz + (nz - 1) * sz / 2
+      );
+      targets.GRID.push(obj);
+      i++;
+    }
+  }
+}
+
+/* ============================================================
+   TRANSFORM
+   ============================================================ */
+function transform(view) {
+  currentView = view;
+  document.querySelectorAll('.view-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('btn-' + view).classList.add('active');
+
+  const tgts = targets[view];
+  TWEEN.removeAll();
+
+  for (let i = 0; i < objects.length; i++) {
+    const obj = objects[i];
+    const tgt = tgts[i];
+
+    new TWEEN.Tween(obj.position)
+      .to({ x: tgt.position.x, y: tgt.position.y, z: tgt.position.z }, 1200)
+      .easing(TWEEN.Easing.Exponential.InOut)
+      .delay(i * 2)
+      .start();
+
+    new TWEEN.Tween(obj.rotation)
+      .to({ x: tgt.rotation.x, y: tgt.rotation.y, z: tgt.rotation.z }, 1200)
+      .easing(TWEEN.Easing.Exponential.InOut)
+      .delay(i * 2)
+      .start();
+  }
+
+  // Adjust camera for view
+  const camTarget = {
+    TABLE:  { z: 2800, y: 0 },
+    SPHERE: { z: 2200, y: 0 },
+    HELIX:  { z: 2200, y: 0 },
+    GRID:   { z: 3200, y: 0 }
+  }[view];
+  new TWEEN.Tween(camera.position)
+    .to({ z: camTarget.z, y: camTarget.y }, 1400)
+    .easing(TWEEN.Easing.Exponential.InOut)
+    .start();
+}
+
+/* ============================================================
+   ORBIT / DRAG CONTROLS
+   ============================================================ */
+function setupControls(container) {
+  let isDragging = false, prevX = 0, prevY = 0;
+  let rotX = 0, rotY = 0;
+  let pivotGroup = new THREE.Group();
+  scene.add(pivotGroup);
+  // Move all objects into the pivot group
+  objects.forEach(o => {
+    scene.remove(o);
+    pivotGroup.add(o);
+  });
+
+  container.addEventListener('mousedown', e => { isDragging = true; prevX = e.clientX; prevY = e.clientY; });
+  window.addEventListener('mousemove', e => {
+    if (!isDragging) return;
+    rotY += (e.clientX - prevX) * 0.005;
+    rotX += (e.clientY - prevY) * 0.005;
+    prevX = e.clientX; prevY = e.clientY;
+    pivotGroup.rotation.y = rotY;
+    pivotGroup.rotation.x = rotX;
+  });
+  window.addEventListener('mouseup', () => isDragging = false);
+
+  // Touch support
+  container.addEventListener('touchstart', e => { isDragging = true; prevX = e.touches[0].clientX; prevY = e.touches[0].clientY; }, { passive: true });
+  window.addEventListener('touchmove', e => {
+    if (!isDragging) return;
+    rotY += (e.touches[0].clientX - prevX) * 0.005;
+    rotX += (e.touches[0].clientY - prevY) * 0.005;
+    prevX = e.touches[0].clientX; prevY = e.touches[0].clientY;
+    pivotGroup.rotation.y = rotY;
+    pivotGroup.rotation.x = rotX;
+  }, { passive: true });
+  window.addEventListener('touchend', () => isDragging = false);
+
+  // Wheel zoom
+  container.addEventListener('wheel', e => {
+    camera.position.z = Math.max(500, Math.min(6000, camera.position.z + e.deltaY * 1.5));
+  }, { passive: true });
+}
+
+/* ============================================================
+   ANIMATE
+   ============================================================ */
+function animate() {
+  requestAnimationFrame(animate);
+  TWEEN.update();
+  renderer.render(scene, camera);
+}
+
+function onResize() {
+  const container = document.getElementById('scene-container');
+  camera.aspect = container.clientWidth / container.clientHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(container.clientWidth, container.clientHeight);
+}
+</script>
+</body>
+</html>
