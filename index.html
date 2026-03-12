@@ -5,10 +5,11 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>People 3D Visualization</title>
 
-  <!-- Three.js -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-  <!-- TWEEN for smooth transitions -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/tween.js/18.6.4/tween.umd.js"></script>
+  <!-- Three.js + CSS3DRenderer (matched versions from same CDN) -->
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/renderers/CSS3DRenderer.js"></script>
+  <!-- TWEEN -->
+  <script src="https://cdn.jsdelivr.net/npm/@tweenjs/tween.js@18.6.4/src/Tween.umd.js"></script>
   <!-- Google Identity Services -->
   <script src="https://accounts.google.com/gsi/client" async defer></script>
 
@@ -235,7 +236,7 @@
       Sign in with Google
     </button>
     <div id="g_id_onload"
-      data-client_id="114956744353-l577a53gpmmvh97s1uba0n8mjqusabpk.apps.googleusercontent.com"
+      data-client_id="YOUR_GOOGLE_CLIENT_ID"
       data-callback="handleCredentialResponse"
       data-auto_prompt="false">
     </div>
@@ -275,118 +276,17 @@
   <div id="scene-container"></div>
 </div>
 
+
+
 <script>
 /* ============================================================
-   CSS3DRenderer — inlined for reliability
+   CONFIGURATION — replace with your values
    ============================================================ */
-THREE.CSS3DObject = function(element) {
-  THREE.Object3D.call(this);
-  this.element = element;
-  this.element.style.position = 'absolute';
-  this.element.style.pointerEvents = 'auto';
-  this.addEventListener('removed', function() {
-    if (this.element.parentNode !== null) this.element.parentNode.removeChild(this.element);
-  });
-};
-THREE.CSS3DObject.prototype = Object.create(THREE.Object3D.prototype);
-THREE.CSS3DObject.prototype.constructor = THREE.CSS3DObject;
-
-THREE.CSS3DRenderer = function() {
-  var _this = this;
-  var _width, _height, _widthHalf, _heightHalf;
-  var matrix = new THREE.Matrix4();
-  var cache = { camera: { style: '' }, objects: new WeakMap() };
-  var domElement = document.createElement('div');
-  domElement.style.overflow = 'hidden';
-  this.domElement = domElement;
-  var cameraElement = document.createElement('div');
-  cameraElement.style.WebkitTransformStyle = 'preserve-3d';
-  cameraElement.style.transformStyle = 'preserve-3d';
-  cameraElement.style.pointerEvents = 'none';
-  domElement.appendChild(cameraElement);
-
-  this.getSize = function() { return { width: _width, height: _height }; };
-  this.setSize = function(width, height) {
-    _width = width; _height = height;
-    _widthHalf = _width / 2; _heightHalf = _height / 2;
-    domElement.style.width = width + 'px';
-    domElement.style.height = height + 'px';
-    cameraElement.style.width = width + 'px';
-    cameraElement.style.height = height + 'px';
-  };
-
-  function epsilon(value) { return Math.abs(value) < 1e-10 ? 0 : value; }
-
-  function getCameraCSSMatrix(matrix) {
-    var e = matrix.elements;
-    return 'matrix3d(' +
-      epsilon(e[0]) + ',' + epsilon(-e[1]) + ',' + epsilon(e[2]) + ',' + epsilon(e[3]) + ',' +
-      epsilon(e[4]) + ',' + epsilon(-e[5]) + ',' + epsilon(e[6]) + ',' + epsilon(e[7]) + ',' +
-      epsilon(e[8]) + ',' + epsilon(-e[9]) + ',' + epsilon(e[10]) + ',' + epsilon(e[11]) + ',' +
-      epsilon(e[12]) + ',' + epsilon(-e[13]) + ',' + epsilon(e[14]) + ',' + epsilon(e[15]) + ')';
-  }
-
-  function getObjectCSSMatrix(matrix, cameraCSSMatrix) {
-    var e = matrix.elements;
-    var f = 'matrix3d(' +
-      epsilon(e[0]) + ',' + epsilon(e[1]) + ',' + epsilon(e[2]) + ',' + epsilon(e[3]) + ',' +
-      epsilon(-e[4]) + ',' + epsilon(-e[5]) + ',' + epsilon(-e[6]) + ',' + epsilon(-e[7]) + ',' +
-      epsilon(e[8]) + ',' + epsilon(e[9]) + ',' + epsilon(e[10]) + ',' + epsilon(e[11]) + ',' +
-      epsilon(e[12]) + ',' + epsilon(e[13]) + ',' + epsilon(e[14]) + ',' + epsilon(e[15]) + ')';
-    return 'translate(-50%,-50%)' + f;
-  }
-
-  function renderObject(object, scene, camera, cameraCSSMatrix) {
-    if (object instanceof THREE.CSS3DObject) {
-      var visible = (object.visible === true) && (object.layers.test(camera.layers) === true);
-      object.element.style.display = visible ? '' : 'none';
-      if (visible) {
-        object.onBeforeRender(_this, scene, camera, null, null, null);
-        var style;
-        matrix.multiplyMatrices(camera.matrixWorldInverse, object.matrixWorld);
-        style = getObjectCSSMatrix(matrix, cameraCSSMatrix);
-        var element = object.element;
-        var cachedStyle = cache.objects.get(object);
-        if (cachedStyle === undefined || cachedStyle.style !== style) {
-          element.style.WebkitTransform = style;
-          element.style.transform = style;
-          var objectData = { style: style };
-          cache.objects.set(object, objectData);
-        }
-        if (element.parentNode !== cameraElement) cameraElement.appendChild(element);
-        object.onAfterRender(_this, scene, camera, null, null, null);
-      }
-    }
-    for (var i = 0, l = object.children.length; i < l; i++) {
-      renderObject(object.children[i], scene, camera, cameraCSSMatrix);
-    }
-  }
-
-  this.render = function(scene, camera) {
-    var fov = camera.projectionMatrix.elements[5] * _heightHalf;
-    if (cache.camera.fov !== fov) {
-      domElement.style.WebkitPerspective = fov + 'px';
-      domElement.style.perspective = fov + 'px';
-      cache.camera.fov = fov;
-    }
-    if (scene.autoUpdate) scene.updateMatrixWorld();
-    if (camera.parent === null) camera.updateMatrixWorld();
-    var cameraCSSMatrix = 'translateZ(' + fov + 'px)' + getCameraCSSMatrix(camera.matrixWorldInverse);
-    var style = cameraCSSMatrix + 'translate(' + _widthHalf + 'px,' + _heightHalf + 'px)';
-    if (cache.camera.style !== style) {
-      cameraElement.style.WebkitTransform = style;
-      cameraElement.style.transform = style;
-      cache.camera.style = style;
-    }
-    renderObject(scene, scene, camera, cameraCSSMatrix);
-  };
-};
-</script>
-
-<script>
-const GOOGLE_CLIENT_ID = '114956744353-l577a53gpmmvh97s1uba0n8mjqusabpk.apps.googleusercontent.com';
-const SHEET_ID = '1YGBLmn7u519LIk0Zv590rpG5QnM7NQ6nZszxQFIHaUUD';
-const SHEET_RANGE = 'Sheet1!A:F';
+const GOOGLE_CLIENT_ID = 'YOUR_GOOGLE_CLIENT_ID';
+// To load from Google Sheets, set the SHEET_ID and ensure the
+// sheet is shared publicly (Anyone with link can view).
+// const SHEET_ID = 'YOUR_GOOGLE_SHEET_ID';
+// const SHEET_RANGE = 'Sheet1!A:F';
 
 /* ============================================================
    EMBEDDED DATA (200 people from CSV)
@@ -474,57 +374,67 @@ let currentView = 'TABLE';
 const TILE_W = 110, TILE_H = 130, GAP = 8;
 
 function initScene() {
-  const container = document.getElementById('scene-container');
-  const W = container.clientWidth, H = container.clientHeight;
+  try {
+    // Safety check — make sure libraries loaded
+    if (typeof THREE === 'undefined') throw new Error('THREE.js not loaded');
+    if (typeof THREE.CSS3DRenderer === 'undefined') throw new Error('CSS3DRenderer not loaded');
+    if (typeof TWEEN === 'undefined' && typeof window.TWEEN === 'undefined') throw new Error('TWEEN not loaded');
 
-  // Camera
-  camera = new THREE.PerspectiveCamera(40, W / H, 1, 10000);
-  camera.position.set(0, 0, 3000);
+    const container = document.getElementById('scene-container');
+    const W = container.clientWidth, H = container.clientHeight;
 
-  // Scene
-  scene = new THREE.Scene();
+    // Camera
+    camera = new THREE.PerspectiveCamera(40, W / H, 1, 10000);
+    camera.position.set(0, 0, 3000);
 
-  // CSS3D Renderer
-  renderer = new THREE.CSS3DRenderer();
-  renderer.setSize(W, H);
-  container.appendChild(renderer.domElement);
+    // Scene
+    scene = new THREE.Scene();
 
-  // Build tiles
-  RAW_DATA.forEach((d, i) => {
-    const div = document.createElement('div');
-    div.className = 'element ' + getColorClass(d.netWorth);
+    // CSS3D Renderer
+    renderer = new THREE.CSS3DRenderer();
+    renderer.setSize(W, H);
+    container.appendChild(renderer.domElement);
 
-    div.innerHTML = `
-      <div class="el-header">
-        <span class="el-idx">${i + 1}</span>
-        <span class="el-country">${d.country}</span>
-      </div>
-      <img class="el-photo" src="${d.photo}" alt="${d.name}" loading="lazy"
-           onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 58 58%22%3E%3Crect width=%2258%22 height=%2258%22 rx=%2229%22 fill=%22%23333%22/%3E%3Ctext x=%2229%22 y=%2234%22 text-anchor=%22middle%22 fill=%22%23888%22 font-size=%2218%22%3E?%3C/text%3E%3C/svg%3E'"/>
-      <div class="el-name">${d.name}</div>
-      <div class="el-interest">${d.interest}</div>
-      <div class="el-worth">${d.netWorth}</div>
-    `;
+    // Build tiles
+    RAW_DATA.forEach((d, i) => {
+      const div = document.createElement('div');
+      div.className = 'element ' + getColorClass(d.netWorth);
 
-    const obj = new THREE.CSS3DObject(div);
-    obj.position.set(Math.random() * 4000 - 2000, Math.random() * 4000 - 2000, Math.random() * 4000 - 2000);
-    scene.add(obj);
-    objects.push(obj);
-  });
+      div.innerHTML = `
+        <div class="el-header">
+          <span class="el-idx">${i + 1}</span>
+          <span class="el-country">${d.country}</span>
+        </div>
+        <img class="el-photo" src="${d.photo}" alt="${d.name}" loading="lazy"
+             onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 58 58%22%3E%3Crect width=%2258%22 height=%2258%22 rx=%2229%22 fill=%22%23333%22/%3E%3Ctext x=%2229%22 y=%2234%22 text-anchor=%22middle%22 fill=%22%23888%22 font-size=%2218%22%3E?%3C/text%3E%3C/svg%3E'"/>
+        <div class="el-name">${d.name}</div>
+        <div class="el-interest">${d.interest}</div>
+        <div class="el-worth">${d.netWorth}</div>
+      `;
 
-  computeTargets();
+      const obj = new THREE.CSS3DObject(div);
+      obj.position.set(Math.random() * 4000 - 2000, Math.random() * 4000 - 2000, Math.random() * 4000 - 2000);
+      scene.add(obj);
+      objects.push(obj);
+    });
 
-  // Mouse drag to orbit
-  setupControls(container);
+    computeTargets();
+    setupControls(container);
 
-  // Hide loading, show app
-  document.getElementById('loading').style.display = 'none';
-  document.getElementById('app').style.display = 'block';
+    // Hide loading, show app
+    document.getElementById('loading').style.display = 'none';
+    document.getElementById('app').style.display = 'block';
 
-  transform('TABLE');
-  animate();
+    transform('TABLE');
+    animate();
 
-  window.addEventListener('resize', onResize);
+    window.addEventListener('resize', onResize);
+
+  } catch(err) {
+    console.error('initScene error:', err);
+    // Show error on loading screen instead of spinning forever
+    document.querySelector('#loading p').textContent = 'Error: ' + err.message + ' — Check console (F12)';
+  }
 }
 
 /* ============================================================
@@ -694,7 +604,8 @@ function setupControls(container) {
    ============================================================ */
 function animate() {
   requestAnimationFrame(animate);
-  window.TWEEN.update();
+  const TW = window.TWEEN || TWEEN;
+  TW.update();
   renderer.render(scene, camera);
 }
 
