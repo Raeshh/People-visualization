@@ -5,11 +5,11 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>People 3D Visualization</title>
 
-  <!-- Three.js + CSS3DRenderer -->
-  <script src="https://unpkg.com/three@0.134.0/build/three.min.js"></script>
-  <script src="https://unpkg.com/three@0.134.0/examples/js/renderers/CSS3DRenderer.js"></script>
-  <!-- TWEEN for smooth transitions -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/tween.js/18.6.4/tween.umd.js"></script>
+  <!-- Three.js + CSS3DRenderer (matched versions from same CDN) -->
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/renderers/CSS3DRenderer.js"></script>
+  <!-- TWEEN -->
+  <script src="https://cdn.jsdelivr.net/npm/@tweenjs/tween.js@18.6.4/src/Tween.umd.js"></script>
   <!-- Google Identity Services -->
   <script src="https://accounts.google.com/gsi/client" async defer></script>
 
@@ -236,7 +236,7 @@
       Sign in with Google
     </button>
     <div id="g_id_onload"
-      data-client_id="114956744353-l577a53gpmmvh97s1uba0n8mjqusabpk.apps.googleusercontent.com"
+      data-client_id="YOUR_GOOGLE_CLIENT_ID"
       data-callback="handleCredentialResponse"
       data-auto_prompt="false">
     </div>
@@ -276,12 +276,17 @@
   <div id="scene-container"></div>
 </div>
 
+
+
 <script>
-
-const GOOGLE_CLIENT_ID = '114956744353-l577a53gpmmvh97s1uba0n8mjqusabpk.apps.googleusercontent.com';
-
-const SHEET_ID = '1YGBLmn7u519LIk0Zv590rpG5QnM7NQ6nZszxQFIHaUU';
-const SHEET_RANGE = 'Sheet1!A:F';
+/* ============================================================
+   CONFIGURATION — replace with your values
+   ============================================================ */
+const GOOGLE_CLIENT_ID = 'YOUR_GOOGLE_CLIENT_ID';
+// To load from Google Sheets, set the SHEET_ID and ensure the
+// sheet is shared publicly (Anyone with link can view).
+// const SHEET_ID = 'YOUR_GOOGLE_SHEET_ID';
+// const SHEET_RANGE = 'Sheet1!A:F';
 
 /* ============================================================
    EMBEDDED DATA (200 people from CSV)
@@ -339,14 +344,17 @@ async function loginWithToken(token) {
 }
 
 function onLoginSuccess(name, picture) {
+  // Hide login, show app FIRST so container has real pixel dimensions
   document.getElementById('login-page').style.display = 'none';
+  document.getElementById('app').style.display = 'block';
   document.getElementById('loading').style.display = 'flex';
   document.getElementById('user-name').textContent = name;
   if (picture) {
     const av = document.getElementById('user-avatar');
     av.src = picture; av.style.display = 'block';
   }
-  setTimeout(initScene, 100);
+  // Wait 2 animation frames so browser paints and computes layout
+  requestAnimationFrame(() => requestAnimationFrame(() => initScene()));
 }
 
 function signOut() {
@@ -369,57 +377,69 @@ let currentView = 'TABLE';
 const TILE_W = 110, TILE_H = 130, GAP = 8;
 
 function initScene() {
-  const container = document.getElementById('scene-container');
-  const W = container.clientWidth, H = container.clientHeight;
+  try {
+    // Safety check — make sure libraries loaded
+    if (typeof THREE === 'undefined') throw new Error('THREE.js not loaded');
+    if (typeof THREE.CSS3DRenderer === 'undefined') throw new Error('CSS3DRenderer not loaded');
+    if (typeof TWEEN === 'undefined' && typeof window.TWEEN === 'undefined') throw new Error('TWEEN not loaded');
 
-  // Camera
-  camera = new THREE.PerspectiveCamera(40, W / H, 1, 10000);
-  camera.position.set(0, 0, 3000);
+    const container = document.getElementById('scene-container');
+    // Force layout recalc — container must be visible to get real dimensions
+    let W = container.clientWidth || window.innerWidth;
+    let H = container.clientHeight || (window.innerHeight - 56);
+    console.log('Container size:', W, H);
 
-  // Scene
-  scene = new THREE.Scene();
+    // Camera
+    camera = new THREE.PerspectiveCamera(40, W / H, 1, 10000);
+    camera.position.set(0, 0, 3000);
 
-  // CSS3D Renderer
-  renderer = new THREE.CSS3DRenderer();
-  renderer.setSize(W, H);
-  container.appendChild(renderer.domElement);
+    // Scene
+    scene = new THREE.Scene();
 
-  // Build tiles
-  RAW_DATA.forEach((d, i) => {
-    const div = document.createElement('div');
-    div.className = 'element ' + getColorClass(d.netWorth);
+    // CSS3D Renderer
+    renderer = new THREE.CSS3DRenderer();
+    renderer.setSize(W, H);
+    container.appendChild(renderer.domElement);
 
-    div.innerHTML = `
-      <div class="el-header">
-        <span class="el-idx">${i + 1}</span>
-        <span class="el-country">${d.country}</span>
-      </div>
-      <img class="el-photo" src="${d.photo}" alt="${d.name}" loading="lazy"
-           onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 58 58%22%3E%3Crect width=%2258%22 height=%2258%22 rx=%2229%22 fill=%22%23333%22/%3E%3Ctext x=%2229%22 y=%2234%22 text-anchor=%22middle%22 fill=%22%23888%22 font-size=%2218%22%3E?%3C/text%3E%3C/svg%3E'"/>
-      <div class="el-name">${d.name}</div>
-      <div class="el-interest">${d.interest}</div>
-      <div class="el-worth">${d.netWorth}</div>
-    `;
+    // Build tiles
+    RAW_DATA.forEach((d, i) => {
+      const div = document.createElement('div');
+      div.className = 'element ' + getColorClass(d.netWorth);
 
-    const obj = new THREE.CSS3DObject(div);
-    obj.position.set(Math.random() * 4000 - 2000, Math.random() * 4000 - 2000, Math.random() * 4000 - 2000);
-    scene.add(obj);
-    objects.push(obj);
-  });
+      div.innerHTML = `
+        <div class="el-header">
+          <span class="el-idx">${i + 1}</span>
+          <span class="el-country">${d.country}</span>
+        </div>
+        <img class="el-photo" src="${d.photo}" alt="${d.name}" loading="lazy"
+             onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 58 58%22%3E%3Crect width=%2258%22 height=%2258%22 rx=%2229%22 fill=%22%23333%22/%3E%3Ctext x=%2229%22 y=%2234%22 text-anchor=%22middle%22 fill=%22%23888%22 font-size=%2218%22%3E?%3C/text%3E%3C/svg%3E'"/>
+        <div class="el-name">${d.name}</div>
+        <div class="el-interest">${d.interest}</div>
+        <div class="el-worth">${d.netWorth}</div>
+      `;
 
-  computeTargets();
+      const obj = new THREE.CSS3DObject(div);
+      obj.position.set(Math.random() * 4000 - 2000, Math.random() * 4000 - 2000, Math.random() * 4000 - 2000);
+      scene.add(obj);
+      objects.push(obj);
+    });
 
-  // Mouse drag to orbit
-  setupControls(container);
+    computeTargets();
+    setupControls(container);
 
-  // Hide loading, show app
-  document.getElementById('loading').style.display = 'none';
-  document.getElementById('app').style.display = 'block';
+    // Hide loading (app is already visible from onLoginSuccess)
+    document.getElementById('loading').style.display = 'none';
 
-  transform('TABLE');
-  animate();
+    transform('TABLE');
+    animate();
 
-  window.addEventListener('resize', onResize);
+    window.addEventListener('resize', onResize);
+
+  } catch(err) {
+    console.error('initScene error:', err);
+    // Show error on loading screen instead of spinning forever
+    document.querySelector('#loading p').textContent = 'Error: ' + err.message + ' — Check console (F12)';
+  }
 }
 
 /* ============================================================
@@ -508,21 +528,22 @@ function transform(view) {
   document.getElementById('btn-' + view).classList.add('active');
 
   const tgts = targets[view];
-  TWEEN.removeAll();
+  const TW = window.TWEEN;
+  TW.removeAll();
 
   for (let i = 0; i < objects.length; i++) {
     const obj = objects[i];
     const tgt = tgts[i];
 
-    new TWEEN.Tween(obj.position)
+    new TW.Tween(obj.position)
       .to({ x: tgt.position.x, y: tgt.position.y, z: tgt.position.z }, 1200)
-      .easing(TWEEN.Easing.Exponential.InOut)
+      .easing(TW.Easing.Exponential.InOut)
       .delay(i * 2)
       .start();
 
-    new TWEEN.Tween(obj.rotation)
+    new TW.Tween(obj.rotation)
       .to({ x: tgt.rotation.x, y: tgt.rotation.y, z: tgt.rotation.z }, 1200)
-      .easing(TWEEN.Easing.Exponential.InOut)
+      .easing(TW.Easing.Exponential.InOut)
       .delay(i * 2)
       .start();
   }
@@ -534,9 +555,9 @@ function transform(view) {
     HELIX:  { z: 2200, y: 0 },
     GRID:   { z: 3200, y: 0 }
   }[view];
-  new TWEEN.Tween(camera.position)
+  new TW.Tween(camera.position)
     .to({ z: camTarget.z, y: camTarget.y }, 1400)
-    .easing(TWEEN.Easing.Exponential.InOut)
+    .easing(TW.Easing.Exponential.InOut)
     .start();
 }
 
@@ -588,7 +609,8 @@ function setupControls(container) {
    ============================================================ */
 function animate() {
   requestAnimationFrame(animate);
-  TWEEN.update();
+  const TW = window.TWEEN || TWEEN;
+  TW.update();
   renderer.render(scene, camera);
 }
 
