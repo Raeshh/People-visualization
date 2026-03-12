@@ -9,7 +9,53 @@
   <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/renderers/CSS3DRenderer.js"></script>
   <!-- TWEEN -->
-  <script src="https://cdn.jsdelivr.net/npm/@tweenjs/tween.js@18.6.4/src/Tween.umd.js"></script>
+  <script>
+/* ── Minimal TWEEN.js inlined (no CDN dependency) ── */
+window.TWEEN = (function() {
+  var _tweens = [];
+  function Tween(obj) {
+    this._obj = obj; this._to = {}; this._dur = 1000; this._delay = 0;
+    this._startTime = 0; this._easing = function(t){return t};
+    this._started = false; this._cb = null;
+  }
+  Tween.prototype.to = function(props, dur) { this._to = props; this._dur = dur; return this; };
+  Tween.prototype.delay = function(d) { this._delay = d; return this; };
+  Tween.prototype.easing = function(fn) { this._easing = fn; return this; };
+  Tween.prototype.onComplete = function(fn) { this._cb = fn; return this; };
+  Tween.prototype.start = function() {
+    this._startTime = performance.now() + this._delay;
+    this._from = {};
+    for (var k in this._to) this._from[k] = this._obj[k];
+    _tweens.push(this); return this;
+  };
+  Tween.prototype.update = function(now) {
+    if (now < this._startTime) return true;
+    if (!this._started) { this._started = true; }
+    var elapsed = Math.min((now - this._startTime) / this._dur, 1);
+    var t = this._easing(elapsed);
+    for (var k in this._to) {
+      this._obj[k] = this._from[k] + (this._to[k] - this._from[k]) * t;
+    }
+    if (elapsed >= 1) { if (this._cb) this._cb(); return false; }
+    return true;
+  };
+  var Easing = {
+    Exponential: {
+      InOut: function(t) {
+        if (t === 0) return 0; if (t === 1) return 1;
+        if ((t *= 2) < 1) return 0.5 * Math.pow(1024, t - 1);
+        return 0.5 * (-Math.pow(2, -10 * (t - 1)) + 2);
+      }
+    }
+  };
+  function removeAll() { _tweens.length = 0; }
+  function update(now) {
+    if (!now) now = performance.now();
+    _tweens = _tweens.filter(function(tw){ return tw.update(now); });
+  }
+  return { Tween: Tween, Easing: Easing, removeAll: removeAll, update: update };
+})();
+  </script>
   <!-- Google Identity Services -->
   <script src="https://accounts.google.com/gsi/client" async defer></script>
 
@@ -305,23 +351,14 @@ function getColorClass(str) {
    GOOGLE AUTH
    ============================================================ */
 function triggerGoogleLogin() {
-  // Uses Google Identity Services popup flow
-  google.accounts.id.initialize({
+  // Use OAuth2 token flow — avoids FedCM conflicts
+  google.accounts.oauth2.initTokenClient({
     client_id: GOOGLE_CLIENT_ID,
-    callback: handleCredentialResponse
-  });
-  google.accounts.id.prompt((notification) => {
-    if (notification.isNotDisplayed() || notification.isSkippedMoment()) {
-      // Fallback: open one-tap
-      google.accounts.oauth2.initTokenClient({
-        client_id: GOOGLE_CLIENT_ID,
-        scope: 'profile email',
-        callback: (resp) => {
-          if (resp.access_token) loginWithToken(resp.access_token);
-        }
-      }).requestAccessToken();
+    scope: 'profile email',
+    callback: (resp) => {
+      if (resp.access_token) loginWithToken(resp.access_token);
     }
-  });
+  }).requestAccessToken();
 }
 
 function handleCredentialResponse(response) {
@@ -376,7 +413,7 @@ function initScene() {
     // Safety check — make sure libraries loaded
     if (typeof THREE === 'undefined') throw new Error('THREE.js not loaded');
     if (typeof THREE.CSS3DRenderer === 'undefined') throw new Error('CSS3DRenderer not loaded');
-    if (typeof TWEEN === 'undefined' && typeof window.TWEEN === 'undefined') throw new Error('TWEEN not loaded');
+    // TWEEN is inlined — always available as window.TWEEN
 
     const container = document.getElementById('scene-container');
     // Force layout recalc — container must be visible to get real dimensions
