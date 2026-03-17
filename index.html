@@ -202,8 +202,8 @@ window.TWEEN = (function() {
 
     /* ========== ELEMENT TILES ========== */
     .element {
-      width: 100px;
-      height: 120px;
+      width: 110px;
+      height: 140px;
       border-radius: 8px;
       display: flex;
       flex-direction: column;
@@ -236,17 +236,20 @@ window.TWEEN = (function() {
     }
 
     .el-name {
-      font-size: 8.5px;
+      font-size: 8px;
       font-weight: 600;
       color: #fff;
       text-align: center;
-      margin-top: 5px;
+      margin-top: 4px;
       line-height: 1.3;
-      max-height: 32px;
+      max-height: 36px;
       overflow: hidden;
       width: 100%;
       white-space: normal;
-      text-overflow: break-word;
+      word-overflow: break-word;
+      display: -webkit-box;
+      -webkit-line-clamp: 3;
+      -webkit-box-orient: vertical;
       padding: 0 2px;
     }
 
@@ -406,7 +409,7 @@ window.devLogin = function() {
 let camera, scene, renderer;
 let objects = [], targets = { TABLE:[], SPHERE:[], HELIX:[], GRID:[] };
 let currentView = 'TABLE';
-const TILE_W = 110, TILE_H = 130, GAP = 8;
+const TILE_W = 120, TILE_H = 150, GAP = 8;
 
 function initScene() {
   try {
