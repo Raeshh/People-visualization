@@ -534,75 +534,60 @@ function computeTargets() {
     }
   }
 
-  /* ── PYRAMID (Regular Tetrahedron) ──────────────────────────
-     4 triangular faces, ~50 tiles each, using a barycentric
-     triangular grid (steps=9 → 55 pts/face, 220 total ≥ 200).
-     Tiles are oriented to face outward from the tetrahedron centre.
+  /* ── PYRAMID (2D Triangle — stacked rows) ───────────────────
+     Row 1: 1 card at apex, Row 2: 2 cards, Row 3: 3 … etc.
+     200 cards → 19 full rows (190) + partial row 20 (10 cards).
+     The last partial row is spread evenly across the full
+     row-20 width so the base looks intentional, not broken.
   ─────────────────────────────────────────────────────────────*/
   {
-    const R = 920; // circumradius
-    const sq2 = Math.sqrt(2), sq6 = Math.sqrt(6);
+    const sx = TILE_W + GAP + 4;
+    const sy = TILE_H + GAP + 4;
 
-    // Regular tetrahedron vertices on unit sphere, scaled by R
-    const V = [
-      new THREE.Vector3( 0,            1,           0          ).multiplyScalar(R),
-      new THREE.Vector3( 2*sq2/3,     -1/3,         0          ).multiplyScalar(R),
-      new THREE.Vector3(-sq2/3,       -1/3,         sq6/3      ).multiplyScalar(R),
-      new THREE.Vector3(-sq2/3,       -1/3,        -sq6/3      ).multiplyScalar(R)
-    ];
+    // Find how many complete rows fit
+    let totalRows = 1;
+    while ((totalRows * (totalRows + 1)) / 2 <= n) totalRows++;
+    totalRows--; // last complete row index (1-based)
+    const remainder = n - (totalRows * (totalRows + 1)) / 2;
+    const fullRows = totalRows + (remainder > 0 ? 1 : 0);
 
-    // The 4 faces (winding chosen so normals point outward)
-    const faces = [
-      [V[0], V[2], V[1]],
-      [V[0], V[1], V[3]],
-      [V[0], V[3], V[2]],
-      [V[1], V[2], V[3]]
-    ];
+    let placed = 0;
+    for (let row = 1; row <= fullRows; row++) {
+      const isLastRow = row === fullRows && remainder > 0;
+      const fullCount = row;           // cards a complete row would have
+      const cardsInRow = isLastRow ? remainder : fullCount;
 
-    const allPositions = [];   // {pos, normal} for every grid point across 4 faces
-    const steps = 9;           // triangular grid divisions per face
+      // Full row width (same for every row, based on what row r would hold)
+      const fullRowWidth = fullCount * sx - GAP;
+      const startX = -fullRowWidth / 2 + (TILE_W + GAP) / 2;
+      const y = -(row - 1) * sy;
 
-    faces.forEach(([A, B, C]) => {
-      // Outward-facing normal for this face
-      const ab = new THREE.Vector3().subVectors(B, A);
-      const ac = new THREE.Vector3().subVectors(C, A);
-      const normal = new THREE.Vector3().crossVectors(ab, ac).normalize();
-
-      // Barycentric grid — (steps+1)(steps+2)/2 = 55 points per face
-      for (let i = 0; i <= steps; i++) {
-        for (let j = 0; j <= steps - i; j++) {
-          const k = steps - i - j;
-          const u = i / steps, v = j / steps, w = k / steps;
-
-          // Slight inset (5 %) so edge tiles don't overlap across faces
-          const inset = 0.05;
-          const ui = u * (1 - 3*inset) + inset;
-          const vi = v * (1 - 3*inset) + inset;
-          const wi = w * (1 - 3*inset) + inset;
-
-          const pos = new THREE.Vector3()
-            .addScaledVector(A, ui)
-            .addScaledVector(B, vi)
-            .addScaledVector(C, wi);
-
-          allPositions.push({ pos, normal });
+      if (isLastRow && cardsInRow > 1) {
+        // Spread partial cards evenly across the full row width
+        const gap = fullRowWidth / (cardsInRow - 1);
+        for (let c = 0; c < cardsInRow; c++) {
+          const obj = new THREE.Object3D();
+          obj.position.set(-fullRowWidth / 2 + c * gap, y, 0);
+          obj.rotation.set(0, 0, 0);
+          targets.PYRAMID.push(obj);
+          placed++;
+        }
+      } else {
+        for (let c = 0; c < cardsInRow; c++) {
+          const obj = new THREE.Object3D();
+          obj.position.set(startX + c * sx, y, 0);
+          obj.rotation.set(0, 0, 0);
+          targets.PYRAMID.push(obj);
+          placed++;
         }
       }
-    });
-
-    // Distribute the 200 tiles evenly — take first 200 from the pool
-    for (let i = 0; i < n; i++) {
-      const { pos, normal } = allPositions[i];
-      const obj = new THREE.Object3D();
-      obj.position.copy(pos);
-
-      // Point the tile's Z-axis in the outward-normal direction
-      // CSS3DObject front face is +Z, so look AT (pos + normal) to face outward
-      const lookTarget = pos.clone().add(normal.clone().multiplyScalar(500));
-      obj.lookAt(lookTarget);
-
-      targets.PYRAMID.push(obj);
     }
+
+    // Vertically centre the whole pyramid
+    const totalHeight = (fullRows - 1) * sy;
+    targets.PYRAMID.forEach(obj => {
+      obj.position.y += totalHeight / 2;
+    });
   }
 }
 
